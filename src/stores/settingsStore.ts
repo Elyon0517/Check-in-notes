@@ -6,7 +6,7 @@ import {
   ensureNotificationPermission,
   syncScheduledNotifications,
 } from '@/src/services/notificationService';
-import type { AppSettings, WeekdayIndex } from '@/src/types/models';
+import type { AppLanguage, AppSettings, WeekdayIndex } from '@/src/types/models';
 
 type SettingsState = {
   loading: boolean;
@@ -15,6 +15,8 @@ type SettingsState = {
   setEodTime: (time: string) => Promise<void>;
   setWeekStart: (day: WeekdayIndex) => Promise<void>;
   setNotificationsEnabled: (enabled: boolean) => Promise<void>;
+  setLanguage: (language: AppLanguage) => Promise<void>;
+  toggleLanguage: () => Promise<void>;
   clearAllData: () => Promise<void>;
 };
 
@@ -40,6 +42,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       await ensureNotificationPermission();
     }
     await settingsRepo.updateSettings({ notifications_enabled: enabled });
+    await get().refresh();
+  },
+  setLanguage: async (language) => {
+    await settingsRepo.updateSettings({ language });
+    await get().refresh();
+  },
+  toggleLanguage: async () => {
+    const current = get().settings?.language ?? 'en';
+    await settingsRepo.updateSettings({ language: current === 'en' ? 'zh' : 'en' });
     await get().refresh();
   },
   clearAllData: async () => {

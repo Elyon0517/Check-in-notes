@@ -18,6 +18,7 @@ import {
 } from '@/components/BulletEditor';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import { useI18n } from '@/src/i18n';
 import * as bulletService from '@/src/services/bulletService';
 import type { BulletDraft } from '@/src/services/bulletService';
 import { syncScheduledNotifications } from '@/src/services/notificationService';
@@ -27,6 +28,7 @@ export default function NewBulletScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const c = Colors[theme];
+  const { language, t } = useI18n();
   const draftRef = useRef<BulletDraft>(emptyDraft());
   const refreshHome = useHomeStore((s) => s.refresh);
   const [saving, setSaving] = useState(false);
@@ -37,9 +39,9 @@ export default function NewBulletScreen() {
 
   const save = async () => {
     const d = draftRef.current;
-    const err = validateDraft(d);
+    const err = validateDraft(d, language);
     if (err) {
-      Alert.alert('无法保存', err);
+      Alert.alert(t('invalidTitle'), err);
       return;
     }
     setSaving(true);
@@ -75,7 +77,7 @@ export default function NewBulletScreen() {
           {saving ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.saveText}>保存</Text>
+            <Text style={styles.saveText}>{t('save')}</Text>
           )}
         </Pressable>
       </View>

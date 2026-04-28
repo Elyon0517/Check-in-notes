@@ -14,28 +14,23 @@ import {
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import { useI18n, weekdayLabel } from '@/src/i18n';
 import type { WeekdayIndex } from '@/src/types/models';
 import { useSettingsStore } from '@/src/stores/settingsStore';
 
-const WEEK_OPTIONS: { label: string; value: WeekdayIndex }[] = [
-  { label: '周日', value: 0 },
-  { label: '周一', value: 1 },
-  { label: '周二', value: 2 },
-  { label: '周三', value: 3 },
-  { label: '周四', value: 4 },
-  { label: '周五', value: 5 },
-  { label: '周六', value: 6 },
-];
+const WEEK_OPTIONS: WeekdayIndex[] = [0, 1, 2, 3, 4, 5, 6];
 
 export default function SettingsScreen() {
   const theme = useColorScheme() ?? 'light';
   const c = Colors[theme];
+  const { language, t } = useI18n();
   const loading = useSettingsStore((s) => s.loading);
   const settings = useSettingsStore((s) => s.settings);
   const refresh = useSettingsStore((s) => s.refresh);
   const setEodTime = useSettingsStore((s) => s.setEodTime);
   const setWeekStart = useSettingsStore((s) => s.setWeekStart);
   const setNotificationsEnabled = useSettingsStore((s) => s.setNotificationsEnabled);
+  const toggleLanguage = useSettingsStore((s) => s.toggleLanguage);
   const clearAllData = useSettingsStore((s) => s.clearAllData);
   const [eodDraft, setEodDraft] = useState('');
 
@@ -53,16 +48,16 @@ export default function SettingsScreen() {
 
   const saveEod = () => {
     if (!/^\d{1,2}:\d{2}$/.test(eodDraft.trim())) {
-      Alert.alert('格式错误', '请使用 HH:mm，例如 21:30');
+      Alert.alert(t('invalidTitle'), t('invalidTimeFormat'));
       return;
     }
     void setEodTime(eodDraft.trim());
   };
 
   const confirmClear = () => {
-    Alert.alert('清除本地数据', '将删除所有子弹与完成记录，且无法恢复。确定？', [
-      { text: '取消', style: 'cancel' },
-      { text: '清除', style: 'destructive', onPress: () => void clearAllData() },
+    Alert.alert(t('clearTitle'), t('clearMessage'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('clear'), style: 'destructive', onPress: () => void clearAllData() },
     ]);
   };
 
@@ -81,12 +76,12 @@ export default function SettingsScreen() {
     <ScrollView style={[styles.root, { backgroundColor: c.background }]} contentContainerStyle={styles.pad}>
 
       {/* EOD time */}
-      <Text style={[styles.sectionLabel, { color: sub }]}>通知</Text>
+      <Text style={[styles.sectionLabel, { color: sub }]}>{t('notifications')}</Text>
       <View style={[styles.group, { borderColor: border, backgroundColor: theme === 'dark' ? '#1a1a1a' : '#fff' }]}>
         <View style={styles.row}>
           <View style={styles.rowLabel}>
-            <Text style={[styles.rowTitle, { color: c.text }]}>今日结束时间</Text>
-            <Text style={[styles.rowSub, { color: sub }]}>每日结束提醒将在此时发送</Text>
+            <Text style={[styles.rowTitle, { color: c.text }]}>{t('endTime')}</Text>
+            <Text style={[styles.rowSub, { color: sub }]}>{t('endTimeSub')}</Text>
           </View>
           <View style={styles.eodRow}>
             <TextInput
@@ -102,7 +97,7 @@ export default function SettingsScreen() {
             <Pressable
               style={[styles.eodSave, { backgroundColor: c.tint }]}
               onPress={saveEod}>
-              <Text style={styles.eodSaveText}>保存</Text>
+              <Text style={styles.eodSaveText}>{t('save')}</Text>
             </Pressable>
           </View>
         </View>
@@ -111,8 +106,24 @@ export default function SettingsScreen() {
 
         <View style={styles.row}>
           <View style={styles.rowLabel}>
-            <Text style={[styles.rowTitle, { color: c.text }]}>启用本地提醒</Text>
-            <Text style={[styles.rowSub, { color: sub }]}>关闭后不发送任何通知</Text>
+            <Text style={[styles.rowTitle, { color: c.text }]}>{t('language')}</Text>
+            <Text style={[styles.rowSub, { color: sub }]}>{t('languageSub')}</Text>
+          </View>
+          <Pressable
+            style={[styles.languageBtn, { borderColor: border }]}
+            onPress={() => void toggleLanguage()}>
+            <Text style={[styles.languageText, { color: c.tint }]}>
+              {language === 'en' ? t('switchToChinese') : t('switchToEnglish')}
+            </Text>
+          </Pressable>
+        </View>
+
+        <View style={[styles.divider, { backgroundColor: border }]} />
+
+        <View style={styles.row}>
+          <View style={styles.rowLabel}>
+            <Text style={[styles.rowTitle, { color: c.text }]}>{t('enableLocalNotifications')}</Text>
+            <Text style={[styles.rowSub, { color: sub }]}>{t('enableLocalNotificationsSub')}</Text>
           </View>
           <Switch
             value={!!settings?.notifications_enabled}
@@ -123,25 +134,25 @@ export default function SettingsScreen() {
       </View>
 
       {/* Week start */}
-      <Text style={[styles.sectionLabel, { color: sub, marginTop: 24 }]}>日历</Text>
+      <Text style={[styles.sectionLabel, { color: sub, marginTop: 24 }]}>{t('calendar')}</Text>
       <View style={[styles.group, { borderColor: border, backgroundColor: theme === 'dark' ? '#1a1a1a' : '#fff' }]}>
-        <Text style={[styles.rowTitle, { color: c.text, padding: 14, paddingBottom: 8 }]}>一周从哪天开始</Text>
+        <Text style={[styles.rowTitle, { color: c.text, padding: 14, paddingBottom: 8 }]}>{t('weekStartQuestion')}</Text>
         <View style={[styles.weekWrap, { padding: 14, paddingTop: 4 }]}>
-          {WEEK_OPTIONS.map((opt) => (
+          {WEEK_OPTIONS.map((value) => (
             <Pressable
-              key={opt.value}
-              onPress={() => void setWeekStart(opt.value)}
+              key={value}
+              onPress={() => void setWeekStart(value)}
               style={[
                 styles.chip,
                 { borderColor: border },
-                settings?.week_start_day === opt.value && { backgroundColor: c.tint, borderColor: c.tint },
+                settings?.week_start_day === value && { backgroundColor: c.tint, borderColor: c.tint },
               ]}>
               <Text
                 style={[
                   styles.chipText,
-                  { color: settings?.week_start_day === opt.value ? '#fff' : c.text },
+                  { color: settings?.week_start_day === value ? '#fff' : c.text },
                 ]}>
-                {opt.label}
+                {weekdayLabel(value, language)}
               </Text>
             </Pressable>
           ))}
@@ -149,11 +160,11 @@ export default function SettingsScreen() {
       </View>
 
       {/* Danger zone */}
-      <Text style={[styles.sectionLabel, { color: sub, marginTop: 24 }]}>数据</Text>
+      <Text style={[styles.sectionLabel, { color: sub, marginTop: 24 }]}>{t('data')}</Text>
       <Pressable
         style={[styles.dangerBtn, { borderColor: '#c00' }]}
         onPress={confirmClear}>
-        <Text style={styles.dangerText}>清除全部本地数据</Text>
+        <Text style={styles.dangerText}>{t('clearAllData')}</Text>
       </Pressable>
     </ScrollView>
   );
@@ -205,6 +216,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   eodSaveText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  languageBtn: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  languageText: { fontSize: 13, fontWeight: '800' },
 
   weekWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {

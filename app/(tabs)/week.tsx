@@ -10,20 +10,26 @@ import {
   View,
 } from 'react-native';
 
+import { AnimatedProgressBar } from '@/components/AnimatedProgressBar';
+import { AppBackground } from '@/components/AppBackground';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import { categoryLabel, useI18n } from '@/src/i18n';
 import type { Bullet } from '@/src/types/models';
 import { useWeekStore } from '@/src/stores/weekStore';
+import { getCategoryMeta } from '@/src/utils/category';
 
 export default function WeekScreen() {
   const theme = useColorScheme() ?? 'light';
   const c = Colors[theme];
+  const { t } = useI18n();
   const loading = useWeekStore((s) => s.loading);
   const bullets = useWeekStore((s) => s.bullets);
   const completedIds = useWeekStore((s) => s.completedIds);
   const weekAnchor = useWeekStore((s) => s.weekAnchor);
   const refresh = useWeekStore((s) => s.refresh);
   const completeBullet = useWeekStore((s) => s.completeBullet);
+  const undoBullet = useWeekStore((s) => s.undoBullet);
 
   useFocusEffect(
     useCallback(() => {
@@ -36,26 +42,28 @@ export default function WeekScreen() {
   const pct = total === 0 ? 0 : (done / total) * 100;
 
   return (
-    <ScrollView
-      style={[styles.root, { backgroundColor: c.background }]}
-      contentContainerStyle={styles.pad}>
+    <View style={[styles.root, { backgroundColor: c.background }]}>
+      <AppBackground dark={theme === 'dark'} />
+      <ScrollView contentContainerStyle={styles.pad}>
 
       {/* Week progress card */}
       <View style={[styles.summaryCard, { backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f5f5f5' }]}>
         <View style={styles.summaryHeader}>
           <View>
-            <Text style={[styles.summaryTitle, { color: c.text }]}>本周进度</Text>
+            <Text style={[styles.summaryTitle, { color: c.text }]}>{t('weekProgress')}</Text>
             <Text style={[styles.weekLabel, { color: theme === 'dark' ? '#666' : '#999' }]}>
-              起始日 {weekAnchor}
+              {t('weekStart')} {weekAnchor}
             </Text>
           </View>
           <Text style={[styles.summaryFrac, { color: c.tint }]}>
             {total === 0 ? '—' : `${done} / ${total}`}
           </Text>
         </View>
-        <View style={[styles.barBg, { backgroundColor: theme === 'dark' ? '#2a2a2a' : '#ddd' }]}>
-          <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: c.tint }]} />
-        </View>
+        <AnimatedProgressBar
+          percent={pct / 100}
+          color={c.tint}
+          trackColor={theme === 'dark' ? '#2a2a2a' : '#ddd'}
+        />
       </View>
 
       {loading ? (
@@ -63,14 +71,14 @@ export default function WeekScreen() {
       ) : bullets.length === 0 ? (
         <View style={[styles.emptyCard, { borderColor: theme === 'dark' ? '#222' : '#f0f0f0', backgroundColor: theme === 'dark' ? '#111' : '#fafafa' }]}>
           <FontAwesome name="calendar-o" size={28} color={theme === 'dark' ? '#444' : '#ccc'} style={{ marginBottom: 10 }} />
-          <Text style={[styles.emptyTitle, { color: c.text }]}>还没有每周子弹</Text>
+          <Text style={[styles.emptyTitle, { color: c.text }]}>{t('noWeekly')}</Text>
           <Text style={[styles.emptyDesc, { color: theme === 'dark' ? '#555' : '#bbb' }]}>
-            在「今日」页右上角 + 新建，类型选「每周」
+            {t('noWeeklySub')}
           </Text>
         </View>
       ) : (
         <>
-          <Text style={[styles.listLabel, { color: theme === 'dark' ? '#666' : '#aaa' }]}>本周子弹</Text>
+          <Text style={[styles.listLabel, { color: theme === 'dark' ? '#666' : '#aaa' }]}>{t('weeklyDevils')}</Text>
           {bullets.map((item) => (
             <WeekRow
               key={item.id}
@@ -79,11 +87,13 @@ export default function WeekScreen() {
               c={c}
               theme={theme}
               onComplete={() => void completeBullet(item)}
+              onUndo={() => void undoBullet(item)}
             />
           ))}
         </>
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -93,13 +103,17 @@ function WeekRow({
   c,
   theme,
   onComplete,
+  onUndo,
 }: {
   item: Bullet;
   done: boolean;
   c: (typeof Colors)['light'] | (typeof Colors)['dark'];
   theme: 'light' | 'dark';
   onComplete: () => void;
+  onUndo: () => void;
 }) {
+  const category = getCategoryMeta(item.category);
+  const { language, t } = useI18n();
   const cardBg = done
     ? theme === 'dark' ? '#1a1a1a' : '#fafafa'
     : c.background;
@@ -110,8 +124,7 @@ function WeekRow({
   return (
     <View style={[styles.card, { borderColor, backgroundColor: cardBg }]}>
       <Pressable
-        onPress={onComplete}
-        disabled={done}
+        onPress={done ? onUndo : onComplete}
         style={({ pressed }) => [styles.cardBody, { opacity: pressed ? 0.7 : 1 }]}>
         {/* Checkmark circle */}
         <View style={[
@@ -134,6 +147,16 @@ function WeekRow({
             numberOfLines={1}>
             {item.title}
           </Text>
+          <View style={styles.metaRow}>
+            <View style={[styles.categoryPill, { backgroundColor: `${category.color}18` }]}>
+              <Text style={[styles.categoryText, { color: category.color }]}>{categoryLabel(item.category, language)}</Text>
+            </View>
+            {done && (
+              <Pressable onPress={onUndo} hitSlop={8}>
+                <Text style={[styles.undoText, { color: c.tint }]}>{t('undo')}</Text>
+              </Pressable>
+            )}
+          </View>
           {item.description ? (
             <Text
               style={[styles.cardDesc, { color: theme === 'dark' ? '#666' : '#aaa' }]}
@@ -161,8 +184,6 @@ const styles = StyleSheet.create({
   summaryTitle: { fontSize: 16, fontWeight: '700' },
   weekLabel: { fontSize: 12, marginTop: 2 },
   summaryFrac: { fontSize: 18, fontWeight: '800' },
-  barBg: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 3 },
 
   emptyCard: { borderWidth: 1, borderRadius: 12, padding: 28, alignItems: 'center', marginTop: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '600', marginBottom: 6 },
@@ -191,6 +212,10 @@ const styles = StyleSheet.create({
   textBlock: { flex: 1 },
   cardTitle: { fontSize: 15, fontWeight: '600' },
   strikethrough: { textDecorationLine: 'line-through' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 5 },
+  categoryPill: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
+  categoryText: { fontSize: 11, fontWeight: '700' },
+  undoText: { fontSize: 12, fontWeight: '700' },
   cardDesc: { fontSize: 13, marginTop: 2 },
   editBtn: { padding: 12 },
 });

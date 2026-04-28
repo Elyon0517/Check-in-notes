@@ -2,6 +2,10 @@ export type BulletType = 'daily' | 'weekly' | 'one_time';
 
 export type Priority = 'low' | 'medium' | 'high';
 
+export type BulletCategory = 'general' | 'study' | 'fitness' | 'work' | 'health' | 'life';
+
+export type AppLanguage = 'en' | 'zh';
+
 /** 0 = Sunday … 6 = Saturday (aligned with `date-fns` / JS `getDay`) */
 export type WeekdayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -9,6 +13,7 @@ export type BulletRow = {
   id: string;
   title: string;
   description: string;
+  category: BulletCategory;
   type: BulletType;
   priority: Priority;
   reminder_enabled: number;
@@ -39,17 +44,20 @@ export type SettingsRow = {
   eod_reminder_time: string;
   week_start_day: number;
   notifications_enabled: number;
+  language: AppLanguage;
 };
 
 export type AppSettings = {
   eod_reminder_time: string;
   week_start_day: WeekdayIndex;
   notifications_enabled: boolean;
+  language: AppLanguage;
 };
 
 export function rowToBullet(row: BulletRow): Bullet {
   return {
     ...row,
+    category: row.category ?? 'general',
     reminder_enabled: row.reminder_enabled === 1,
     eod_reminder_enabled: row.eod_reminder_enabled === 1,
   };

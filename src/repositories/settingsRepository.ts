@@ -6,6 +6,7 @@ function rowToSettings(row: SettingsRow): AppSettings {
     eod_reminder_time: row.eod_reminder_time,
     week_start_day: row.week_start_day as AppSettings['week_start_day'],
     notifications_enabled: row.notifications_enabled === 1,
+    language: row.language === 'zh' ? 'zh' : 'en',
   };
 }
 
@@ -17,8 +18,8 @@ export async function ensureSettingsRow(): Promise<AppSettings> {
   );
   if (row) return rowToSettings(row);
   await db.runAsync(
-    `INSERT INTO settings (id, eod_reminder_time, week_start_day, notifications_enabled)
-     VALUES ('default', '20:00', 1, 1)`,
+    `INSERT INTO settings (id, eod_reminder_time, week_start_day, notifications_enabled, language)
+     VALUES ('default', '20:00', 1, 1, 'en')`,
     [],
   );
   const created = await db.getFirstAsync<SettingsRow>(
@@ -49,6 +50,10 @@ export async function updateSettings(partial: Partial<AppSettings>): Promise<App
   if (partial.notifications_enabled !== undefined) {
     sets.push('notifications_enabled = ?');
     vals.push(partial.notifications_enabled ? 1 : 0);
+  }
+  if (partial.language !== undefined) {
+    sets.push('language = ?');
+    vals.push(partial.language);
   }
   if (sets.length) {
     await db.runAsync(`UPDATE settings SET ${sets.join(', ')} WHERE id = 'default'`, vals);

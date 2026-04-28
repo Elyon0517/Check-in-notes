@@ -1,6 +1,6 @@
 # Check-in-notes
 
-本地优先的「子弹」习惯 / 任务完成应用（Expo + React Native + TypeScript）。需求说明见仓库根目录的 `Discovery.md`。
+本地优先的「小恶魔」习惯 / 任务完成应用（Expo + React Native + TypeScript）。需求说明见仓库根目录的 `Discovery.md`。
 
 ## 运行
 

@@ -11,6 +11,7 @@ type WeekState = {
   weekAnchor: string;
   refresh: () => Promise<void>;
   completeBullet: (b: Bullet) => Promise<void>;
+  undoBullet: (b: Bullet) => Promise<void>;
 };
 
 export const useWeekStore = create<WeekState>((set, get) => ({
@@ -30,6 +31,11 @@ export const useWeekStore = create<WeekState>((set, get) => ({
   },
   completeBullet: async (b) => {
     await bulletService.completeBullet(b);
+    await get().refresh();
+    await syncScheduledNotifications();
+  },
+  undoBullet: async (b) => {
+    await bulletService.undoBulletCompletion(b);
     await get().refresh();
     await syncScheduledNotifications();
   },

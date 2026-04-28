@@ -2,7 +2,7 @@ import * as bulletRepo from '@/src/repositories/bulletRepository';
 import * as completionRepo from '@/src/repositories/completionRepository';
 import * as settingsRepo from '@/src/repositories/settingsRepository';
 import { lastNDates, localDateString, weekAnchorString } from '@/src/services/dateHelpers';
-import type { AppSettings, Bullet, BulletType } from '@/src/types/models';
+import type { AppSettings, Bullet, BulletCategory, BulletType } from '@/src/types/models';
 import { generateId } from '@/src/utils/id';
 
 function isBulletActive(
@@ -143,12 +143,30 @@ export async function completeBullet(bullet: Bullet): Promise<void> {
   });
 }
 
+export async function undoBulletCompletion(bullet: Bullet): Promise<void> {
+  const settings = await settingsRepo.getSettings();
+  const now = new Date();
+  const today = localDateString(now);
+  const weekAnchor = weekAnchorString(now, settings.week_start_day);
+
+  if (bullet.type === 'daily') {
+    await completionRepo.deleteLatestCompletionOnLocalDate(bullet.id, today);
+    return;
+  }
+  if (bullet.type === 'weekly') {
+    await completionRepo.deleteLatestCompletionForWeekAnchor(bullet.id, weekAnchor);
+    return;
+  }
+  await completionRepo.deleteLatestCompletionForBullet(bullet.id);
+}
+
 export async function quickAddDaily(title: string): Promise<void> {
   const id = generateId();
   await bulletRepo.insertBullet({
     id,
     title: title.trim(),
     description: '',
+    category: 'general',
     type: 'daily',
     priority: 'medium',
     reminder_enabled: false,
@@ -161,6 +179,7 @@ export async function quickAddDaily(title: string): Promise<void> {
 export type BulletDraft = {
   title: string;
   description: string;
+  category: BulletCategory;
   type: BulletType;
   priority: Bullet['priority'];
   reminder_enabled: boolean;
@@ -175,6 +194,7 @@ export async function createBulletFromForm(d: BulletDraft): Promise<string> {
     id,
     title: d.title.trim(),
     description: d.description.trim(),
+    category: d.category,
     type: d.type,
     priority: d.priority,
     reminder_enabled: d.reminder_enabled,
@@ -189,10 +209,15 @@ export async function archiveBullet(id: string): Promise<void> {
   await bulletRepo.setBulletArchived(id, true);
 }
 
+export async function deleteBullet(id: string): Promise<void> {
+  await bulletRepo.deleteBullet(id);
+}
+
 export async function updateBulletFromForm(id: string, d: BulletDraft): Promise<void> {
   await bulletRepo.updateBullet(id, {
     title: d.title.trim(),
     description: d.description.trim(),
+    category: d.category,
     type: d.type,
     priority: d.priority,
     reminder_enabled: d.reminder_enabled,
@@ -205,14 +230,40 @@ export async function updateBulletFromForm(id: string, d: BulletDraft): Promise<
 export type HistoryItem = {
   bulletId: string;
   bulletTitle: string;
+  category: BulletCategory;
   completedAt: string;
 };
 
+export type DailyCompletionStat = {
+  date: string;
+  completed: number;
+  planned: number;
+  percent: number;
+  delta: number;
+};
+
+function isBulletEligibleForDate(b: Bullet, date: string) {
+  const dayStart = new Date(`${date}T00:00:00`);
+  const dayEnd = new Date(`${date}T23:59:59`);
+  const created = new Date(b.created_at);
+  const archived = b.archived_at ? new Date(b.archived_at) : null;
+  return created <= dayEnd && (!archived || archived >= dayStart);
+}
+
+function plannedForDate(b: Bullet, date: string) {
+  if (!isBulletEligibleForDate(b, date)) return false;
+  if (b.type === 'daily') return true;
+  if (b.type === 'weekly') return new Date(`${date}T12:00:00`).getDay() === b.weekly_day;
+  return false;
+}
+
 export async function getHistory(): Promise<{
   groups: { date: string; items: HistoryItem[] }[];
-  last7: { date: string; count: number }[];
+  last7: DailyCompletionStat[];
+  heatmap: DailyCompletionStat[];
 }> {
   const groupsRaw = await completionRepo.listCompletionsGroupedByDay(90);
+  const allBullets = await bulletRepo.listAllBullets();
   const groups: { date: string; items: HistoryItem[] }[] = [];
   for (const g of groupsRaw) {
     const items: HistoryItem[] = [];
@@ -220,16 +271,23 @@ export async function getHistory(): Promise<{
       const b = await bulletRepo.getBulletById(row.bullet_id);
       items.push({
         bulletId: row.bullet_id,
-        bulletTitle: b?.title ?? '（已归档或删除）',
+        bulletTitle: b?.title ?? 'Deleted devil',
+        category: b?.category ?? 'general',
         completedAt: row.completed_at,
       });
     }
     groups.push({ date: g.date, items });
   }
-  const last7: { date: string; count: number }[] = [];
-  for (const date of lastNDates(7)) {
+  const heatmap: DailyCompletionStat[] = [];
+  let previousPercent = 0;
+  for (const date of lastNDates(180)) {
     const count = await completionRepo.countCompletionsOnLocalDate(date);
-    last7.push({ date, count });
+    const expected = allBullets.filter((b) => plannedForDate(b, date)).length;
+    const planned = Math.max(expected, count);
+    const percent = planned === 0 ? 0 : Math.min(1, count / planned);
+    const delta = percent - previousPercent;
+    heatmap.push({ date, completed: count, planned, percent, delta });
+    previousPercent = percent;
   }
-  return { groups, last7 };
+  return { groups, last7: heatmap.slice(-7), heatmap };
 }

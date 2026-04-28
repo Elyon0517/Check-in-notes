@@ -1,11 +1,12 @@
 import { getDatabase } from '@/src/db/database';
-import type { Bullet, BulletRow, BulletType, Priority } from '@/src/types/models';
+import type { Bullet, BulletCategory, BulletRow, BulletType, Priority } from '@/src/types/models';
 import { rowToBullet } from '@/src/types/models';
 
 export type BulletInsert = {
   id: string;
   title: string;
   description: string;
+  category: BulletCategory;
   type: BulletType;
   priority: Priority;
   reminder_enabled: boolean;
@@ -19,14 +20,15 @@ export async function insertBullet(input: BulletInsert): Promise<void> {
   const now = new Date().toISOString();
   await db.runAsync(
     `INSERT INTO bullets (
-      id, title, description, type, priority,
+      id, title, description, category, type, priority,
       reminder_enabled, reminder_time, eod_reminder_enabled, weekly_day,
       archived_at, created_at, updated_at, user_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)`,
     [
       input.id,
       input.title,
       input.description,
+      input.category,
       input.type,
       input.priority,
       input.reminder_enabled ? 1 : 0,
@@ -46,6 +48,7 @@ export async function updateBullet(
       BulletInsert,
       | 'title'
       | 'description'
+      | 'category'
       | 'type'
       | 'priority'
       | 'reminder_enabled'
@@ -62,6 +65,7 @@ export async function updateBullet(
   const map: [keyof typeof patch, string][] = [
     ['title', 'title'],
     ['description', 'description'],
+    ['category', 'category'],
     ['type', 'type'],
     ['priority', 'priority'],
     ['reminder_time', 'reminder_time'],
@@ -95,6 +99,11 @@ export async function setBulletArchived(id: string, archived: boolean): Promise<
   ]);
 }
 
+export async function deleteBullet(id: string): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(`DELETE FROM bullets WHERE id = ?`, [id]);
+}
+
 export async function getBulletById(id: string): Promise<Bullet | null> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<BulletRow>(`SELECT * FROM bullets WHERE id = ?`, [id]);
@@ -117,6 +126,15 @@ export async function listArchivedBullets(): Promise<Bullet[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<BulletRow>(
     `SELECT * FROM bullets WHERE archived_at IS NOT NULL ORDER BY updated_at DESC`,
+    [],
+  );
+  return rows.map(rowToBullet);
+}
+
+export async function listAllBullets(): Promise<Bullet[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<BulletRow>(
+    `SELECT * FROM bullets ORDER BY created_at ASC`,
     [],
   );
   return rows.map(rowToBullet);

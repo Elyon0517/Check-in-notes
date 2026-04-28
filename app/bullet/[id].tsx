@@ -19,6 +19,7 @@ import {
 } from '@/components/BulletEditor';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import { useI18n } from '@/src/i18n';
 import * as bulletRepo from '@/src/repositories/bulletRepository';
 import * as bulletService from '@/src/services/bulletService';
 import type { BulletDraft } from '@/src/services/bulletService';
@@ -30,10 +31,12 @@ export default function EditBulletScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const c = Colors[theme];
+  const { language, t } = useI18n();
   const draftRef = useRef<BulletDraft>(emptyDraft());
   const [initial, setInitial] = useState<BulletDraft | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
   const refreshHome = useHomeStore((s) => s.refresh);
 
   useEffect(() => {
@@ -46,7 +49,7 @@ export default function EditBulletScreen() {
       const b = await bulletRepo.getBulletById(id);
       if (cancelled) return;
       if (!b) {
-        Alert.alert('未找到', '这条子弹不存在');
+        Alert.alert(t('notFoundTitle'), t('notFoundMessage'));
         router.back();
         return;
       }
@@ -63,9 +66,9 @@ export default function EditBulletScreen() {
   const save = async () => {
     if (!id) return;
     const d = draftRef.current;
-    const err = validateDraft(d);
+    const err = validateDraft(d, language);
     if (err) {
-      Alert.alert('无法保存', err);
+      Alert.alert(t('invalidTitle'), err);
       return;
     }
     setSaving(true);
@@ -79,23 +82,20 @@ export default function EditBulletScreen() {
     }
   };
 
-  const archive = () => {
+  const confirmDelete = () => {
     if (!id) return;
-    Alert.alert('归档子弹', '归档后将不再出现在列表中，历史记录保留。确定？', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '归档',
-        style: 'destructive',
-        onPress: () => void doArchive(),
-      },
-    ]);
+    if (!deleteConfirming) {
+      setDeleteConfirming(true);
+      return;
+    }
+    void deleteCurrentDevil();
   };
 
-  const doArchive = async () => {
+  const deleteCurrentDevil = async () => {
     if (!id) return;
     setSaving(true);
     try {
-      await bulletService.archiveBullet(id);
+      await bulletService.deleteBullet(id);
       await refreshHome();
       await syncScheduledNotifications();
       router.back();
@@ -129,12 +129,34 @@ export default function EditBulletScreen() {
         tint={c.tint}
       />
       <View style={[styles.footer, { borderTopColor: theme === 'dark' ? '#333' : '#eee', backgroundColor: c.background }]}>
+        {deleteConfirming ? (
+          <Text style={[styles.deleteHint, { color: theme === 'dark' ? '#aaa' : '#64748B' }]}>
+            {t('deleteMessage')}
+          </Text>
+        ) : null}
         <Pressable
-          style={[styles.archiveBtn, { borderColor: '#c00' }]}
-          onPress={archive}
+          style={({ pressed }) => [
+            styles.deleteBtn,
+            {
+              borderColor: '#DC2626',
+              backgroundColor: deleteConfirming ? '#DC2626' : 'transparent',
+              opacity: pressed ? 0.75 : 1,
+            },
+          ]}
+          onPress={confirmDelete}
           disabled={saving}>
-          <Text style={styles.archiveText}>归档子弹</Text>
+          <Text style={[styles.deleteText, deleteConfirming && { color: '#fff' }]}>
+            {deleteConfirming ? t('confirmDelete') : t('deleteDevil')}
+          </Text>
         </Pressable>
+        {deleteConfirming ? (
+          <Pressable
+            style={styles.cancelBtn}
+            onPress={() => setDeleteConfirming(false)}
+            disabled={saving}>
+            <Text style={[styles.cancelText, { color: c.tint }]}>{t('cancel')}</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           style={({ pressed }) => [styles.saveBtn, { backgroundColor: c.tint, opacity: pressed ? 0.85 : 1 }]}
           onPress={() => void save()}
@@ -142,7 +164,7 @@ export default function EditBulletScreen() {
           {saving ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.saveText}>保存</Text>
+            <Text style={styles.saveText}>{t('save')}</Text>
           )}
         </Pressable>
       </View>
@@ -159,17 +181,23 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     gap: 10,
   },
-  archiveBtn: {
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  archiveText: { color: '#c00', fontWeight: '500', fontSize: 15 },
   saveBtn: {
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
   saveText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  deleteBtn: {
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  deleteText: { color: '#DC2626', fontSize: 15, fontWeight: '700' },
+  deleteHint: { fontSize: 12, lineHeight: 16, textAlign: 'center' },
+  cancelBtn: {
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  cancelText: { fontSize: 14, fontWeight: '700' },
 });

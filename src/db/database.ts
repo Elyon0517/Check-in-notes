@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS bullets (
   id TEXT PRIMARY KEY NOT NULL,
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
+  category TEXT NOT NULL DEFAULT 'general',
   type TEXT NOT NULL CHECK (type IN ('daily', 'weekly', 'one_time')),
   priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
   reminder_enabled INTEGER NOT NULL DEFAULT 0,
@@ -32,7 +33,8 @@ CREATE TABLE IF NOT EXISTS settings (
   id TEXT PRIMARY KEY NOT NULL DEFAULT 'default',
   eod_reminder_time TEXT NOT NULL DEFAULT '20:00',
   week_start_day INTEGER NOT NULL DEFAULT 1,
-  notifications_enabled INTEGER NOT NULL DEFAULT 1
+  notifications_enabled INTEGER NOT NULL DEFAULT 1,
+  language TEXT NOT NULL DEFAULT 'en'
 );
 
 CREATE INDEX IF NOT EXISTS idx_completions_bullet ON bullet_completions (bullet_id);
@@ -41,11 +43,25 @@ CREATE INDEX IF NOT EXISTS idx_completions_week_anchor ON bullet_completions (we
 CREATE INDEX IF NOT EXISTS idx_bullets_archived ON bullets (archived_at);
 `;
 
+async function ensureColumn(
+  db: SQLite.SQLiteDatabase,
+  table: string,
+  column: string,
+  definition: string,
+) {
+  const rows = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`, []);
+  if (!rows.some((r) => r.name === column)) {
+    await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+  }
+}
+
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (dbInstance) return dbInstance;
   const db = await SQLite.openDatabaseAsync('bullets.db');
   await db.execAsync('PRAGMA foreign_keys = ON;');
   await db.execAsync(SCHEMA);
+  await ensureColumn(db, 'bullets', 'category', `TEXT NOT NULL DEFAULT 'general'`);
+  await ensureColumn(db, 'settings', 'language', `TEXT NOT NULL DEFAULT 'en'`);
   dbInstance = db;
   return db;
 }

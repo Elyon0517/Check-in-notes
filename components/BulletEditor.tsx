@@ -10,21 +10,17 @@ import {
 } from 'react-native';
 
 import type { BulletDraft } from '@/src/services/bulletService';
-import type { BulletType, Priority } from '@/src/types/models';
+import { categoryLabel, priorityLabel, translate, typeLabel, useI18n, weekdayLabel } from '@/src/i18n';
+import type { AppLanguage } from '@/src/types/models';
+import type { BulletCategory, BulletType, Priority } from '@/src/types/models';
 
-const TYPES: { key: BulletType; label: string }[] = [
-  { key: 'daily', label: '每日' },
-  { key: 'weekly', label: '每周' },
-  { key: 'one_time', label: '一次性' },
-];
+const TYPES: BulletType[] = ['daily', 'weekly', 'one_time'];
 
-const PRIOS: { key: Priority; label: string }[] = [
-  { key: 'low', label: '低' },
-  { key: 'medium', label: '中' },
-  { key: 'high', label: '高' },
-];
+const PRIOS: Priority[] = ['low', 'medium', 'high'];
 
-const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+const CATEGORIES: BulletCategory[] = ['general', 'study', 'fitness', 'work', 'health', 'life'];
+
+const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 
 type Props = {
   initial: BulletDraft;
@@ -37,6 +33,7 @@ type Props = {
 
 export function BulletEditor({ initial, onChange, textColor, subColor, borderColor, tint }: Props) {
   const [draft, setDraft] = useState<BulletDraft>(initial);
+  const { language, t } = useI18n();
 
   function patch(p: Partial<BulletDraft>) {
     setDraft((prev) => {
@@ -52,29 +49,29 @@ export function BulletEditor({ initial, onChange, textColor, subColor, borderCol
       contentContainerStyle={styles.scroll}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={[styles.label, { color: subColor }]}>标题 *</Text>
+      <Text style={[styles.label, { color: subColor }]}>{t('titleRequired')}</Text>
       <TextInput
         style={[styles.input, { color: textColor, borderColor }]}
-        placeholder="给这条子弹起个名字"
+        placeholder={t('titlePlaceholder')}
         placeholderTextColor={subColor}
         value={draft.title}
         onChangeText={(t) => patch({ title: t })}
         autoFocus
       />
 
-      <Text style={[styles.label, { color: subColor }]}>描述</Text>
+      <Text style={[styles.label, { color: subColor }]}>{t('description')}</Text>
       <TextInput
         style={[styles.input, styles.multiline, { color: textColor, borderColor }]}
-        placeholder="可选"
+        placeholder={t('optional')}
         placeholderTextColor={subColor}
         value={draft.description}
         onChangeText={(t) => patch({ description: t })}
         multiline
       />
 
-      <Text style={[styles.label, { color: subColor }]}>类型</Text>
+      <Text style={[styles.label, { color: subColor }]}>{t('type')}</Text>
       <View style={styles.row}>
-        {TYPES.map(({ key, label }) => (
+        {TYPES.map((key) => (
           <Pressable
             key={key}
             onPress={() => patch({ type: key })}
@@ -84,7 +81,25 @@ export function BulletEditor({ initial, onChange, textColor, subColor, borderCol
               draft.type === key && { backgroundColor: tint, borderColor: tint },
             ]}>
             <Text style={[styles.chipText, { color: draft.type === key ? '#fff' : textColor }]}>
-              {label}
+              {typeLabel(key, language)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={[styles.label, { color: subColor }]}>{t('category')}</Text>
+      <View style={styles.rowWrap}>
+        {CATEGORIES.map((key) => (
+          <Pressable
+            key={key}
+            onPress={() => patch({ category: key })}
+            style={[
+              styles.chip,
+              { borderColor },
+              draft.category === key && { backgroundColor: tint, borderColor: tint },
+            ]}>
+            <Text style={[styles.chipText, { color: draft.category === key ? '#fff' : textColor }]}>
+              {categoryLabel(key, language)}
             </Text>
           </Pressable>
         ))}
@@ -92,11 +107,11 @@ export function BulletEditor({ initial, onChange, textColor, subColor, borderCol
 
       {draft.type === 'weekly' && (
         <>
-          <Text style={[styles.label, { color: subColor }]}>目标完成日（周几）</Text>
+          <Text style={[styles.label, { color: subColor }]}>{t('targetDay')}</Text>
           <View style={styles.rowWrap}>
-            {WEEKDAYS.map((label, idx) => (
+            {WEEKDAYS.map((_, idx) => (
               <Pressable
-                key={label}
+                key={idx}
                 onPress={() => patch({ weekly_day: idx })}
                 style={[
                   styles.dayChip,
@@ -104,7 +119,7 @@ export function BulletEditor({ initial, onChange, textColor, subColor, borderCol
                   draft.weekly_day === idx && { backgroundColor: tint, borderColor: tint },
                 ]}>
                 <Text style={[styles.chipText, { color: draft.weekly_day === idx ? '#fff' : textColor }]}>
-                  周{label}
+                  {weekdayLabel(idx, language)}
                 </Text>
               </Pressable>
             ))}
@@ -112,9 +127,9 @@ export function BulletEditor({ initial, onChange, textColor, subColor, borderCol
         </>
       )}
 
-      <Text style={[styles.label, { color: subColor }]}>优先级</Text>
+      <Text style={[styles.label, { color: subColor }]}>{t('priority')}</Text>
       <View style={styles.row}>
-        {PRIOS.map(({ key, label }) => (
+        {PRIOS.map((key) => (
           <Pressable
             key={key}
             onPress={() => patch({ priority: key })}
@@ -124,7 +139,7 @@ export function BulletEditor({ initial, onChange, textColor, subColor, borderCol
               draft.priority === key && { backgroundColor: tint, borderColor: tint },
             ]}>
             <Text style={[styles.chipText, { color: draft.priority === key ? '#fff' : textColor }]}>
-              {label}
+              {priorityLabel(key, language)}
             </Text>
           </Pressable>
         ))}
@@ -134,8 +149,8 @@ export function BulletEditor({ initial, onChange, textColor, subColor, borderCol
 
       <View style={styles.switchRow}>
         <View style={styles.switchLabel}>
-          <Text style={[styles.switchTitle, { color: textColor }]}>定时提醒</Text>
-          <Text style={[styles.switchSub, { color: subColor }]}>在指定时间发送通知</Text>
+          <Text style={[styles.switchTitle, { color: textColor }]}>{t('reminder')}</Text>
+          <Text style={[styles.switchSub, { color: subColor }]}>{t('reminderSub')}</Text>
         </View>
         <Switch
           value={draft.reminder_enabled}
@@ -146,7 +161,7 @@ export function BulletEditor({ initial, onChange, textColor, subColor, borderCol
 
       {draft.reminder_enabled && (
         <>
-          <Text style={[styles.label, { color: subColor }]}>提醒时间（HH:mm）</Text>
+          <Text style={[styles.label, { color: subColor }]}>{t('reminderTime')}</Text>
           <TextInput
             style={[styles.input, { color: textColor, borderColor }]}
             placeholder="09:00"
@@ -160,8 +175,8 @@ export function BulletEditor({ initial, onChange, textColor, subColor, borderCol
 
       <View style={[styles.switchRow, { marginTop: 16 }]}>
         <View style={styles.switchLabel}>
-          <Text style={[styles.switchTitle, { color: textColor }]}>今日结束提醒</Text>
-          <Text style={[styles.switchSub, { color: subColor }]}>在「设置」里配置的结束时间提醒</Text>
+          <Text style={[styles.switchTitle, { color: textColor }]}>{t('eodReminder')}</Text>
+          <Text style={[styles.switchSub, { color: subColor }]}>{t('eodReminderSub')}</Text>
         </View>
         <Switch
           value={draft.eod_reminder_enabled}
@@ -176,6 +191,7 @@ export function BulletEditor({ initial, onChange, textColor, subColor, borderCol
 export function draftFromBullet(b: {
   title: string;
   description: string;
+  category: BulletCategory;
   type: BulletType;
   priority: Priority;
   reminder_enabled: boolean;
@@ -186,6 +202,7 @@ export function draftFromBullet(b: {
   return {
     title: b.title,
     description: b.description,
+    category: b.category,
     type: b.type,
     priority: b.priority,
     reminder_enabled: b.reminder_enabled,
@@ -198,6 +215,7 @@ export function draftFromBullet(b: {
 export const emptyDraft = (): BulletDraft => ({
   title: '',
   description: '',
+  category: 'general',
   type: 'daily',
   priority: 'medium',
   reminder_enabled: false,
@@ -206,12 +224,12 @@ export const emptyDraft = (): BulletDraft => ({
   weekly_day: 1,
 });
 
-export function validateDraft(d: BulletDraft): string | null {
-  if (!d.title.trim()) return '请填写标题';
+export function validateDraft(d: BulletDraft, language: AppLanguage = 'en'): string | null {
+  if (!d.title.trim()) return translate(language, 'missingTitle');
   if (d.reminder_enabled) {
-    if (!/^\d{1,2}:\d{2}$/.test(d.reminder_time)) return '提醒时间格式应为 HH:mm（例如 09:00）';
+    if (!/^\d{1,2}:\d{2}$/.test(d.reminder_time)) return translate(language, 'invalidTimeFormat');
     const [h, m] = d.reminder_time.split(':').map((x) => parseInt(x, 10));
-    if (h < 0 || h > 23 || m < 0 || m > 59) return '提醒时间无效';
+    if (h < 0 || h > 23 || m < 0 || m > 59) return translate(language, 'invalidTime');
   }
   return null;
 }

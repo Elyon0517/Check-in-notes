@@ -40,11 +40,12 @@ export async function syncScheduledNotifications(): Promise<void> {
   if (!granted) return;
 
   const eod = parseHm(settings.eod_reminder_time);
+  const isZh = settings.language === 'zh';
   await Notifications.scheduleNotificationAsync({
     identifier: 'eod-wrap',
     content: {
-      title: '今日回顾',
-      body: '看看今天的子弹完成了吗？',
+      title: isZh ? '今日回顾' : 'Daily Review',
+      body: isZh ? '看看今天的小恶魔清除了吗？' : 'Check whether today’s devils are cleared.',
     },
     trigger: {
       type: SchedulableTriggerInputTypes.DAILY,
@@ -60,7 +61,7 @@ export async function syncScheduledNotifications(): Promise<void> {
     if (b.type === 'daily' || b.type === 'one_time') {
       await Notifications.scheduleNotificationAsync({
         identifier: `bullet-${b.id}`,
-        content: { title: b.title, body: '该完成这条子弹了' },
+        content: { title: b.title, body: isZh ? '该清除这个小恶魔了' : 'Time to clear this devil.' },
         trigger: {
           type: SchedulableTriggerInputTypes.DAILY,
           hour: t.hour,
@@ -70,7 +71,7 @@ export async function syncScheduledNotifications(): Promise<void> {
     } else if (b.type === 'weekly') {
       await Notifications.scheduleNotificationAsync({
         identifier: `bullet-${b.id}`,
-        content: { title: b.title, body: '本周的这条子弹该完成了' },
+        content: { title: b.title, body: isZh ? '本周的这个小恶魔该清除了' : 'Time to clear this weekly devil.' },
         trigger: {
           type: SchedulableTriggerInputTypes.WEEKLY,
           weekday: jsWeekdayToExpo(b.weekly_day),
@@ -83,7 +84,7 @@ export async function syncScheduledNotifications(): Promise<void> {
     if (b.eod_reminder_enabled) {
       await Notifications.scheduleNotificationAsync({
         identifier: `bullet-eod-${b.id}`,
-        content: { title: b.title, body: '今日结束前记得完成' },
+        content: { title: b.title, body: isZh ? '今日结束前记得清除' : 'Clear this before the day ends.' },
         trigger: {
           type: SchedulableTriggerInputTypes.DAILY,
           hour: eod.hour,

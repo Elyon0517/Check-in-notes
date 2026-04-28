@@ -11,17 +11,16 @@ import {
   View,
 } from 'react-native';
 
+import { AnimatedProgressBar } from '@/components/AnimatedProgressBar';
+import { AppBackground } from '@/components/AppBackground';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import { categoryLabel, typeLabel, useI18n } from '@/src/i18n';
 import { normalizeProgress } from '@/src/services/bulletService';
 import type { Bullet } from '@/src/types/models';
 import { useHomeStore } from '@/src/stores/homeStore';
+import { getCategoryMeta } from '@/src/utils/category';
 
-function typeLabel(t: Bullet['type']) {
-  if (t === 'daily') return '每日';
-  if (t === 'weekly') return '每周';
-  return '一次';
-}
 function priorityColor(p: Bullet['priority'], tint: string) {
   if (p === 'high') return '#e05';
   if (p === 'medium') return tint;
@@ -34,13 +33,17 @@ function BulletCard({
   c,
   theme,
   onTap,
+  onUndo,
 }: {
   item: Bullet;
   done: boolean;
-  c: (typeof Colors)['light'];
+  c: (typeof Colors)['light'] | (typeof Colors)['dark'];
   theme: 'light' | 'dark';
   onTap: () => void;
+  onUndo: () => void;
 }) {
+  const category = getCategoryMeta(item.category);
+  const { language, t } = useI18n();
   const cardBg = done
     ? theme === 'dark' ? '#1a1a1a' : '#fafafa'
     : c.background;
@@ -51,8 +54,7 @@ function BulletCard({
   return (
     <View style={[styles.card, { borderColor, backgroundColor: cardBg }]}>
       <Pressable
-        onPress={onTap}
-        disabled={done}
+        onPress={done ? onUndo : onTap}
         style={({ pressed }) => [styles.cardBody, { opacity: pressed ? 0.7 : 1 }]}>
         <View style={styles.cardLeft}>
           <View style={[
@@ -78,9 +80,19 @@ function BulletCard({
             </Text>
             <View style={[styles.typeBadge, { borderColor: priorityColor(item.priority, c.tint) }]}>
               <Text style={[styles.typeBadgeText, { color: priorityColor(item.priority, c.tint) }]}>
-                {typeLabel(item.type)}
+                {typeLabel(item.type, language)}
               </Text>
             </View>
+          </View>
+          <View style={styles.metaRow}>
+            <View style={[styles.categoryPill, { backgroundColor: `${category.color}18` }]}>
+              <Text style={[styles.categoryText, { color: category.color }]}>{categoryLabel(item.category, language)}</Text>
+            </View>
+            {done && (
+              <Pressable onPress={onUndo} hitSlop={8}>
+                <Text style={[styles.undoText, { color: c.tint }]}>{t('undo')}</Text>
+              </Pressable>
+            )}
           </View>
           {item.description ? (
             <Text
@@ -103,6 +115,7 @@ function BulletCard({
 export default function HomeScreen() {
   const theme = useColorScheme() ?? 'light';
   const c = Colors[theme];
+  const { t } = useI18n();
   const loading = useHomeStore((s) => s.loading);
   const active = useHomeStore((s) => s.active);
   const completedToday = useHomeStore((s) => s.completedToday);
@@ -110,6 +123,7 @@ export default function HomeScreen() {
   const progress = useHomeStore((s) => s.progress);
   const refresh = useHomeStore((s) => s.refresh);
   const completeBullet = useHomeStore((s) => s.completeBullet);
+  const undoBullet = useHomeStore((s) => s.undoBullet);
   const quickAdd = useHomeStore((s) => s.quickAdd);
   const [quick, setQuick] = useState('');
   const [adding, setAdding] = useState(false);
@@ -135,20 +149,23 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: c.background }]}>
+      <AppBackground dark={theme === 'dark'} />
       <ScrollView contentContainerStyle={styles.listPad} keyboardShouldPersistTaps="handled">
 
         {/* Date + progress */}
         <Text style={[styles.dateLine, { color: theme === 'dark' ? '#666' : '#999' }]}>{today}</Text>
         <View style={[styles.progressWrap, { backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f5f5f5' }]}>
           <View style={styles.progressHeader}>
-            <Text style={[styles.progressLabel, { color: c.text }]}>今日进度</Text>
+            <Text style={[styles.progressLabel, { color: c.text }]}>{t('todayProgress')}</Text>
             <Text style={[styles.progressFraction, { color: c.tint }]}>
               {progress.total === 0 ? '—' : `${progress.done} / ${progress.total}`}
             </Text>
           </View>
-          <View style={[styles.barBg, { backgroundColor: theme === 'dark' ? '#2a2a2a' : '#ddd' }]}>
-            <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: c.tint }]} />
-          </View>
+          <AnimatedProgressBar
+            percent={pct / 100}
+            color={c.tint}
+            trackColor={theme === 'dark' ? '#2a2a2a' : '#ddd'}
+          />
         </View>
 
         {/* Quick add */}
@@ -156,7 +173,7 @@ export default function HomeScreen() {
           <FontAwesome name="plus" size={14} color={theme === 'dark' ? '#555' : '#bbb'} style={{ marginLeft: 12 }} />
           <TextInput
             style={[styles.quickInput, { color: c.text }]}
-            placeholder="快速添加每日子弹…"
+            placeholder={t('quickAdd')}
             placeholderTextColor={theme === 'dark' ? '#555' : '#bbb'}
             value={quick}
             onChangeText={setQuick}
@@ -168,7 +185,7 @@ export default function HomeScreen() {
               style={[styles.addBtn, { backgroundColor: c.tint }]}
               onPress={() => void handleQuickAdd()}
               disabled={adding}>
-              <Text style={styles.addBtnText}>{adding ? '…' : '添加'}</Text>
+              <Text style={styles.addBtnText}>{adding ? t('adding') : t('add')}</Text>
             </Pressable>
           )}
         </View>
@@ -179,16 +196,16 @@ export default function HomeScreen() {
           <>
             {/* Active bullets */}
             <View style={styles.sectionRow}>
-              <Text style={[styles.section, { color: c.text }]}>待完成</Text>
+              <Text style={[styles.section, { color: c.text }]}>{t('active')}</Text>
               <Text style={[styles.sectionCount, { color: theme === 'dark' ? '#555' : '#bbb' }]}>
                 {active.length}
               </Text>
             </View>
             {active.length === 0 ? (
               <View style={[styles.emptyCard, { borderColor: theme === 'dark' ? '#222' : '#f0f0f0', backgroundColor: theme === 'dark' ? '#111' : '#fafafa' }]}>
-                <Text style={[styles.emptyTitle, { color: c.text }]}>今日全部完成 🎉</Text>
+                <Text style={[styles.emptyTitle, { color: c.text }]}>{t('allDone')}</Text>
                 <Text style={[styles.emptyDesc, { color: theme === 'dark' ? '#555' : '#bbb' }]}>
-                  点右上角 + 可新建子弹
+                  {t('addHint')}
                 </Text>
               </View>
             ) : (
@@ -200,6 +217,7 @@ export default function HomeScreen() {
                   c={c}
                   theme={theme}
                   onTap={() => void completeBullet(item)}
+                  onUndo={() => {}}
                 />
               ))
             )}
@@ -208,7 +226,7 @@ export default function HomeScreen() {
             {completedToday.length > 0 && (
               <>
                 <View style={[styles.sectionRow, { marginTop: 20 }]}>
-                  <Text style={[styles.section, { color: theme === 'dark' ? '#555' : '#aaa' }]}>今日已完成</Text>
+                  <Text style={[styles.section, { color: theme === 'dark' ? '#555' : '#aaa' }]}>{t('doneToday')}</Text>
                   <Text style={[styles.sectionCount, { color: theme === 'dark' ? '#444' : '#ccc' }]}>
                     {completedToday.length}
                   </Text>
@@ -221,6 +239,7 @@ export default function HomeScreen() {
                     c={c}
                     theme={theme}
                     onTap={() => {}}
+                    onUndo={() => void undoBullet(item)}
                   />
                 ))}
               </>
@@ -241,8 +260,6 @@ const styles = StyleSheet.create({
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   progressLabel: { fontSize: 15, fontWeight: '600' },
   progressFraction: { fontSize: 15, fontWeight: '700' },
-  barBg: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 3 },
 
   quickRow: {
     flexDirection: 'row',
@@ -295,6 +312,10 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   typeBadgeText: { fontSize: 11, fontWeight: '500' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 5 },
+  categoryPill: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
+  categoryText: { fontSize: 11, fontWeight: '700' },
+  undoText: { fontSize: 12, fontWeight: '700' },
   desc: { marginTop: 3, fontSize: 13 },
   editBtn: { padding: 10 },
 });

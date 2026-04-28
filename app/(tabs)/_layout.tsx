@@ -4,8 +4,10 @@ import { Link, Tabs } from 'expo-router';
 import { Pressable } from 'react-native';
 
 import Colors from '@/constants/Colors';
+import { LanguageToggle } from '@/components/LanguageToggle';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { useI18n } from '@/src/i18n';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
@@ -16,53 +18,78 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { t } = useI18n();
+
+  const headerRight = (withAdd = false) => (
+    <>
+      <LanguageToggle />
+      {withAdd && (
+        <Link href="/bullet/new" asChild>
+          <Pressable style={{ marginLeft: 12, marginRight: 16 }}>
+            {({ pressed }) => (
+              <FontAwesome
+                name="plus"
+                size={22}
+                color={Colors[colorScheme ?? 'light'].tint}
+                style={{ opacity: pressed ? 0.5 : 1 }}
+              />
+            )}
+          </Pressable>
+        </Link>
+      )}
+      {!withAdd && <Pressable style={{ width: 16 }} />}
+    </>
+  );
 
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault,
+        tabBarStyle: {
+          borderTopWidth: 0,
+          elevation: 0,
+          backgroundColor: colorScheme === 'dark' ? '#020617' : '#FFFFFF',
+        },
+        headerStyle: {
+          backgroundColor: colorScheme === 'dark' ? '#020617' : '#F8FAFC',
+        },
+        headerShadowVisible: false,
+        headerTitleStyle: {
+          fontWeight: '800',
+        },
         headerShown: useClientOnlyValue(false, true),
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: '今日',
+          title: t('today'),
           tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
-          headerRight: () => (
-            <Link href="/bullet/new" asChild>
-              <Pressable style={{ marginRight: 16 }}>
-                {({ pressed }) => (
-                  <FontAwesome
-                    name="plus"
-                    size={22}
-                    color={Colors[colorScheme ?? 'light'].tint}
-                    style={{ opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
-          ),
+          headerRight: () => headerRight(true),
         }}
       />
       <Tabs.Screen
         name="week"
         options={{
-          title: '本周',
+          title: t('week'),
           tabBarIcon: ({ color }) => <TabBarIcon name="calendar" color={color} />,
+          headerRight: () => headerRight(false),
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: '历史',
+          title: t('history'),
           tabBarIcon: ({ color }) => <TabBarIcon name="list" color={color} />,
+          headerRight: () => headerRight(false),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: '设置',
+          title: t('settings'),
           tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
+          headerRight: () => headerRight(false),
         }}
       />
     </Tabs>

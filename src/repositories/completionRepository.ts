@@ -57,6 +57,54 @@ export async function hasAnyCompletion(bulletId: string): Promise<boolean> {
   return (row?.c ?? 0) > 0;
 }
 
+export async function deleteLatestCompletionOnLocalDate(
+  bulletId: string,
+  localDate: string,
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    `DELETE FROM bullet_completions
+     WHERE id = (
+       SELECT id FROM bullet_completions
+       WHERE bullet_id = ? AND completion_local_date = ?
+       ORDER BY completed_at DESC
+       LIMIT 1
+     )`,
+    [bulletId, localDate],
+  );
+}
+
+export async function deleteLatestCompletionForWeekAnchor(
+  bulletId: string,
+  weekAnchor: string,
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    `DELETE FROM bullet_completions
+     WHERE id = (
+       SELECT id FROM bullet_completions
+       WHERE bullet_id = ? AND week_anchor_date = ?
+       ORDER BY completed_at DESC
+       LIMIT 1
+     )`,
+    [bulletId, weekAnchor],
+  );
+}
+
+export async function deleteLatestCompletionForBullet(bulletId: string): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    `DELETE FROM bullet_completions
+     WHERE id = (
+       SELECT id FROM bullet_completions
+       WHERE bullet_id = ?
+       ORDER BY completed_at DESC
+       LIMIT 1
+     )`,
+    [bulletId],
+  );
+}
+
 export async function listCompletionsOnLocalDate(localDate: string): Promise<BulletCompletionRow[]> {
   const db = await getDatabase();
   return db.getAllAsync<BulletCompletionRow>(

@@ -13,6 +13,7 @@ type HomeState = {
   progress: { done: number; total: number };
   refresh: () => Promise<void>;
   completeBullet: (b: Bullet) => Promise<void>;
+  undoBullet: (b: Bullet) => Promise<void>;
   quickAdd: (title: string) => Promise<void>;
 };
 
@@ -37,6 +38,11 @@ export const useHomeStore = create<HomeState>((set, get) => ({
   },
   completeBullet: async (b) => {
     await bulletService.completeBullet(b);
+    await get().refresh();
+    await syncScheduledNotifications();
+  },
+  undoBullet: async (b) => {
+    await bulletService.undoBulletCompletion(b);
     await get().refresh();
     await syncScheduledNotifications();
   },
