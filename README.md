@@ -15,6 +15,33 @@ npm run start
 - `npm run android` — 打开 Android
 - `npm run web` — Web（需已配置 `metro.config.js` 中的 `.wasm` 与 COOP/COEP；SQLite 在 Web 上为 alpha，仍以 iOS/Android 为主）
 
+## 本地安装为桌面 App
+
+用生产版安装：
+
+```bash
+npm run build:web
+npm run serve:web
+```
+
+停止本地生产服务：
+
+```bash
+npm run stop:web
+```
+
+然后用 Chrome 或 Edge 打开：
+
+```text
+http://localhost:5002
+```
+
+安装入口：
+
+- 地址栏右侧安装图标
+- 或 Chrome 右上角三个点 -> `Cast, save, and share` -> `Install page as app`
+- 中文界面：右上角三个点 -> `投放、保存和分享` -> `将网页安装为应用`
+
 ## 自动化测试（Jest）
 
 ```bash

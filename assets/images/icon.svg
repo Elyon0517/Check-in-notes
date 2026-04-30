@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Check-in Notes app icon">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="80" x2="864" y2="944" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5B7CFA"/>
+      <stop offset="0.52" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#EF476F"/>
+    </linearGradient>
+    <linearGradient id="card" x1="288" y1="214" x2="738" y2="820" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#FFF4F7"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="36" stdDeviation="34" flood-color="#1F1235" flood-opacity="0.28"/>
+    </filter>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#4C1D95" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <circle cx="224" cy="208" r="116" fill="#FFFFFF" opacity="0.14"/>
+  <circle cx="820" cy="804" r="178" fill="#FFFFFF" opacity="0.11"/>
+  <path d="M804 148c46 64 56 128 28 190-72-23-120-66-144-130 31-42 70-62 116-60Z" fill="#27133F" opacity="0.22"/>
+  <path d="M218 842c-18-73 0-134 55-184 54 52 78 111 72 178-43 26-85 28-127 6Z" fill="#27133F" opacity="0.18"/>
+
+  <g filter="url(#shadow)">
+    <path d="M298 250h348c62 0 112 50 112 112v322c0 62-50 112-112 112H298c-62 0-112-50-112-112V362c0-62 50-112 112-112Z" fill="url(#card)"/>
+    <path d="M300 250h344c63 0 114 51 114 114v58H186v-58c0-63 51-114 114-114Z" fill="#21152F"/>
+    <circle cx="306" cy="336" r="26" fill="#FF6B6B"/>
+    <circle cx="388" cy="336" r="26" fill="#FFD166"/>
+    <circle cx="470" cy="336" r="26" fill="#06D6A0"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <path d="M349 218c-45-67-46-124-4-171 65 34 104 83 118 147-31 30-69 38-114 24Z" fill="#21152F"/>
+    <path d="M671 218c45-67 46-124 4-171-65 34-104 83-118 147 31 30 69 38 114 24Z" fill="#21152F"/>
+  </g>
+
+  <path d="M314 512h104" stroke="#D8CFF1" stroke-width="30" stroke-linecap="round"/>
+  <path d="M314 620h276" stroke="#D8CFF1" stroke-width="30" stroke-linecap="round"/>
+  <path d="M314 704h210" stroke="#D8CFF1" stroke-width="30" stroke-linecap="round"/>
+
+  <g filter="url(#softShadow)">
+    <circle cx="624" cy="540" r="116" fill="#7C3AED"/>
+    <path d="M570 538l38 40 82-92" fill="none" stroke="#FFFFFF" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
