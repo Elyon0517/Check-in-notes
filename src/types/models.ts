@@ -24,11 +24,13 @@ export type BulletRow = {
   created_at: string;
   updated_at: string;
   user_id: string | null;
+  sort_order: number | null;
 };
 
 export type Bullet = Omit<BulletRow, 'reminder_enabled' | 'eod_reminder_enabled'> & {
   reminder_enabled: boolean;
   eod_reminder_enabled: boolean;
+  sort_order: number | null;
 };
 
 export type BulletCompletionRow = {

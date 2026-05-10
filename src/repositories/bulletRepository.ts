@@ -110,16 +110,24 @@ export async function getBulletById(id: string): Promise<Bullet | null> {
   return row ? rowToBullet(row) : null;
 }
 
-/** Non-archived bullets (any type) */
 export async function listActiveBullets(): Promise<Bullet[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<BulletRow>(
     `SELECT * FROM bullets WHERE archived_at IS NULL ORDER BY
+      CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END,
+      sort_order ASC,
       CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
       created_at ASC`,
     [],
   );
   return rows.map(rowToBullet);
+}
+
+export async function updateBulletsSortOrder(orderedIds: string[]): Promise<void> {
+  const db = await getDatabase();
+  for (let i = 0; i < orderedIds.length; i++) {
+    await db.runAsync(`UPDATE bullets SET sort_order = ? WHERE id = ?`, [i, orderedIds[i]]);
+  }
 }
 
 export async function listArchivedBullets(): Promise<Bullet[]> {

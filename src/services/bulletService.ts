@@ -1,6 +1,7 @@
 import * as bulletRepo from '@/src/repositories/bulletRepository';
 import * as completionRepo from '@/src/repositories/completionRepository';
 import * as settingsRepo from '@/src/repositories/settingsRepository';
+import * as skipRepo from '@/src/repositories/skipRepository';
 import { lastNDates, localDateString, weekAnchorString } from '@/src/services/dateHelpers';
 import type { AppSettings, Bullet, BulletCategory, BulletType } from '@/src/types/models';
 import { generateId } from '@/src/utils/id';
@@ -11,14 +12,15 @@ function isBulletActive(
     completedToday: Set<string>;
     completedThisWeek: Set<string>;
     everCompleted: Set<string>;
+    skippedToday: Set<string>;
   },
 ): boolean {
   if (b.archived_at) return false;
   if (b.type === 'daily') {
-    return !deps.completedToday.has(b.id);
+    return !deps.completedToday.has(b.id) && !deps.skippedToday.has(b.id);
   }
   if (b.type === 'weekly') {
-    return !deps.completedThisWeek.has(b.id);
+    return !deps.completedThisWeek.has(b.id) && !deps.skippedToday.has(b.id);
   }
   return !deps.everCompleted.has(b.id);
 }
@@ -27,6 +29,7 @@ async function buildCompletionSets(bullets: Bullet[], today: string, weekAnchor:
   const completedToday = new Set<string>();
   const completedThisWeek = new Set<string>();
   const everCompleted = new Set<string>();
+  const skippedToday = new Set<string>();
 
   for (const b of bullets) {
     if (await completionRepo.hasAnyCompletion(b.id)) {
@@ -40,13 +43,17 @@ async function buildCompletionSets(bullets: Bullet[], today: string, weekAnchor:
         completedThisWeek.add(b.id);
       }
     }
+    if (await skipRepo.hasSkipOnLocalDate(b.id, today)) {
+      skippedToday.add(b.id);
+    }
   }
-  return { completedToday, completedThisWeek, everCompleted };
+  return { completedToday, completedThisWeek, everCompleted, skippedToday };
 }
 
 export async function getHomeLists(): Promise<{
   active: Bullet[];
   completedToday: Bullet[];
+  skippedToday: Bullet[];
   settings: AppSettings;
   today: string;
   progress: { done: number; total: number };
@@ -59,10 +66,15 @@ export async function getHomeLists(): Promise<{
 
   const active: Bullet[] = [];
   const completedTodayBullets: Bullet[] = [];
+  const skippedTodayBullets: Bullet[] = [];
 
   for (const b of bullets) {
     if (sets.completedToday.has(b.id)) {
       completedTodayBullets.push(b);
+      continue;
+    }
+    if (sets.skippedToday.has(b.id)) {
+      skippedTodayBullets.push(b);
       continue;
     }
     if (isBulletActive(b, sets)) {
@@ -74,6 +86,7 @@ export async function getHomeLists(): Promise<{
   return {
     active,
     completedToday: completedTodayBullets,
+    skippedToday: skippedTodayBullets,
     settings,
     today,
     progress: { done: completedTodayBullets.length, total },
@@ -160,20 +173,34 @@ export async function undoBulletCompletion(bullet: Bullet): Promise<void> {
   await completionRepo.deleteLatestCompletionForBullet(bullet.id);
 }
 
-export async function quickAddDaily(title: string): Promise<void> {
+export async function quickAdd(title: string, type: BulletType = 'daily'): Promise<void> {
   const id = generateId();
   await bulletRepo.insertBullet({
     id,
     title: title.trim(),
     description: '',
     category: 'general',
-    type: 'daily',
+    type,
     priority: 'medium',
     reminder_enabled: false,
     reminder_time: '09:00',
     eod_reminder_enabled: false,
     weekly_day: 1,
   });
+}
+
+export async function skipBulletOnce(bullet: Bullet): Promise<void> {
+  const today = localDateString();
+  await skipRepo.insertSkip(bullet.id, today);
+}
+
+export async function unskipBullet(bullet: Bullet): Promise<void> {
+  const today = localDateString();
+  await skipRepo.deleteSkipOnLocalDate(bullet.id, today);
+}
+
+export async function reorderActiveBullets(orderedIds: string[]): Promise<void> {
+  await bulletRepo.updateBulletsSortOrder(orderedIds);
 }
 
 export type BulletDraft = {

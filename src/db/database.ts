@@ -29,6 +29,13 @@ CREATE TABLE IF NOT EXISTS bullet_completions (
   FOREIGN KEY (bullet_id) REFERENCES bullets (id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS bullet_skips (
+  id TEXT PRIMARY KEY NOT NULL,
+  bullet_id TEXT NOT NULL,
+  skip_local_date TEXT NOT NULL,
+  FOREIGN KEY (bullet_id) REFERENCES bullets (id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   id TEXT PRIMARY KEY NOT NULL DEFAULT 'default',
   eod_reminder_time TEXT NOT NULL DEFAULT '20:00',
@@ -41,6 +48,7 @@ CREATE INDEX IF NOT EXISTS idx_completions_bullet ON bullet_completions (bullet_
 CREATE INDEX IF NOT EXISTS idx_completions_local_date ON bullet_completions (completion_local_date);
 CREATE INDEX IF NOT EXISTS idx_completions_week_anchor ON bullet_completions (week_anchor_date);
 CREATE INDEX IF NOT EXISTS idx_bullets_archived ON bullets (archived_at);
+CREATE INDEX IF NOT EXISTS idx_skips_bullet_date ON bullet_skips (bullet_id, skip_local_date);
 `;
 
 async function ensureColumn(
@@ -62,6 +70,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   await db.execAsync(SCHEMA);
   await ensureColumn(db, 'bullets', 'category', `TEXT NOT NULL DEFAULT 'general'`);
   await ensureColumn(db, 'settings', 'language', `TEXT NOT NULL DEFAULT 'en'`);
+  await ensureColumn(db, 'bullets', 'sort_order', `INTEGER`);
   dbInstance = db;
   return db;
 }
@@ -77,6 +86,7 @@ export async function wipeAllTables(): Promise<void> {
   const db = await getDatabase();
   await db.execAsync(`
     DELETE FROM bullet_completions;
+    DELETE FROM bullet_skips;
     DELETE FROM bullets;
     DELETE FROM settings;
   `);

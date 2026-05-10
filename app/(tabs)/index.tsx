@@ -1,8 +1,10 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Link, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -30,41 +32,60 @@ function priorityColor(p: Bullet['priority'], tint: string) {
 function BulletCard({
   item,
   done,
+  skipped,
   c,
   theme,
   onTap,
   onUndo,
+  onSkip,
+  onUnskip,
+  dragHandleProps,
 }: {
   item: Bullet;
   done: boolean;
+  skipped?: boolean;
   c: (typeof Colors)['light'] | (typeof Colors)['dark'];
   theme: 'light' | 'dark';
   onTap: () => void;
   onUndo: () => void;
+  onSkip?: () => void;
+  onUnskip?: () => void;
+  dragHandleProps?: object;
 }) {
   const category = getCategoryMeta(item.category);
   const { language, t } = useI18n();
-  const cardBg = done
+  const muted = done || skipped;
+  const cardBg = muted
     ? theme === 'dark' ? '#1a1a1a' : '#fafafa'
     : c.background;
-  const borderColor = done
+  const borderColor = muted
     ? theme === 'dark' ? '#2a2a2a' : '#ececec'
     : theme === 'dark' ? '#333' : '#e0e0e0';
 
+  const titleColor = muted
+    ? (theme === 'dark' ? '#666' : '#aaa')
+    : c.text;
+
   return (
     <View style={[styles.card, { borderColor, backgroundColor: cardBg }]}>
+      {dragHandleProps && (
+        <View style={styles.dragHandle} {...dragHandleProps}>
+          <FontAwesome name="bars" size={14} color={theme === 'dark' ? '#444' : '#ccc'} />
+        </View>
+      )}
       <Pressable
-        onPress={done ? onUndo : onTap}
+        onPress={done ? onUndo : (skipped ? undefined : onTap)}
         style={({ pressed }) => [styles.cardBody, { opacity: pressed ? 0.7 : 1 }]}>
         <View style={styles.cardLeft}>
           <View style={[
             styles.checkCircle,
             {
-              borderColor: done ? c.tint : theme === 'dark' ? '#555' : '#ccc',
+              borderColor: done ? c.tint : (skipped ? (theme === 'dark' ? '#444' : '#ddd') : (theme === 'dark' ? '#555' : '#ccc')),
               backgroundColor: done ? c.tint : 'transparent',
             },
           ]}>
             {done && <FontAwesome name="check" size={10} color="#fff" />}
+            {skipped && <FontAwesome name="forward" size={9} color={theme === 'dark' ? '#555' : '#bbb'} />}
           </View>
         </View>
         <View style={styles.cardContent}>
@@ -72,7 +93,7 @@ function BulletCard({
             <Text
               style={[
                 styles.title,
-                { color: done ? (theme === 'dark' ? '#666' : '#aaa') : c.text },
+                { color: titleColor },
                 done && styles.strikethrough,
               ]}
               numberOfLines={1}>
@@ -93,10 +114,20 @@ function BulletCard({
                 <Text style={[styles.undoText, { color: c.tint }]}>{t('undo')}</Text>
               </Pressable>
             )}
+            {skipped && onUnskip && (
+              <Pressable onPress={onUnskip} hitSlop={8}>
+                <Text style={[styles.undoText, { color: c.tint }]}>{t('undo')}</Text>
+              </Pressable>
+            )}
+            {!done && !skipped && onSkip && (item.type === 'daily' || item.type === 'weekly') && (
+              <Pressable onPress={onSkip} hitSlop={8}>
+                <Text style={[styles.skipText, { color: theme === 'dark' ? '#555' : '#bbb' }]}>{t('skipOnce')}</Text>
+              </Pressable>
+            )}
           </View>
           {item.description ? (
             <Text
-              style={[styles.desc, { color: done ? (theme === 'dark' ? '#555' : '#bbb') : (theme === 'dark' ? '#aaa' : '#666') }]}
+              style={[styles.desc, { color: muted ? (theme === 'dark' ? '#555' : '#bbb') : (theme === 'dark' ? '#aaa' : '#666') }]}
               numberOfLines={1}>
               {item.description}
             </Text>
@@ -112,6 +143,95 @@ function BulletCard({
   );
 }
 
+const ITEM_HEIGHT = 80;
+
+function DraggableActiveList({
+  items,
+  onReorder,
+  renderItem,
+}: {
+  items: Bullet[];
+  onReorder: (orderedIds: string[]) => void;
+  renderItem: (item: Bullet, dragHandleProps: object) => ReactNode;
+}) {
+  const [list, setList] = useState(items);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const dragAnim = useRef(new Animated.Value(0)).current;
+  const prevItemsRef = useRef(items);
+  if (prevItemsRef.current !== items) {
+    prevItemsRef.current = items;
+    setList(items);
+  }
+
+  const createPanResponder = useCallback(
+    (index: number) =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (_, gs) => {
+          dragAnim.setValue(0);
+          setDragIndex(index);
+          setHoverIndex(index);
+        },
+        onPanResponderMove: (_, gs) => {
+          dragAnim.setValue(gs.dy);
+          const newHover = Math.max(0, Math.min(list.length - 1, index + Math.round(gs.dy / ITEM_HEIGHT)));
+          setHoverIndex(newHover);
+        },
+        onPanResponderRelease: (_, gs) => {
+          const newIndex = Math.max(0, Math.min(list.length - 1, index + Math.round(gs.dy / ITEM_HEIGHT)));
+          dragAnim.setValue(0);
+          setDragIndex(null);
+          setHoverIndex(null);
+          if (newIndex !== index) {
+            const newList = [...list];
+            const [moved] = newList.splice(index, 1);
+            newList.splice(newIndex, 0, moved);
+            setList(newList);
+            onReorder(newList.map((i) => i.id));
+          }
+        },
+        onPanResponderTerminate: () => {
+          dragAnim.setValue(0);
+          setDragIndex(null);
+          setHoverIndex(null);
+        },
+      }),
+    [list, dragAnim, onReorder],
+  );
+
+  return (
+    <View>
+      {list.map((item, index) => {
+        const isDragging = dragIndex === index;
+        const panResponder = createPanResponder(index);
+
+        let translateY = 0;
+        if (dragIndex !== null && hoverIndex !== null && dragIndex !== hoverIndex) {
+          if (dragIndex < hoverIndex && index > dragIndex && index <= hoverIndex) {
+            translateY = -ITEM_HEIGHT;
+          } else if (dragIndex > hoverIndex && index < dragIndex && index >= hoverIndex) {
+            translateY = ITEM_HEIGHT;
+          }
+        }
+
+        return (
+          <Animated.View
+            key={item.id}
+            style={[
+              isDragging
+                ? { zIndex: 10, transform: [{ translateY: dragAnim }], opacity: 0.95 }
+                : { transform: [{ translateY }] },
+            ]}>
+            {renderItem(item, panResponder.panHandlers)}
+          </Animated.View>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const theme = useColorScheme() ?? 'light';
   const c = Colors[theme];
@@ -119,14 +239,19 @@ export default function HomeScreen() {
   const loading = useHomeStore((s) => s.loading);
   const active = useHomeStore((s) => s.active);
   const completedToday = useHomeStore((s) => s.completedToday);
+  const skippedToday = useHomeStore((s) => s.skippedToday);
   const today = useHomeStore((s) => s.today);
   const progress = useHomeStore((s) => s.progress);
   const refresh = useHomeStore((s) => s.refresh);
   const completeBullet = useHomeStore((s) => s.completeBullet);
   const undoBullet = useHomeStore((s) => s.undoBullet);
+  const skipBullet = useHomeStore((s) => s.skipBullet);
+  const unskipBullet = useHomeStore((s) => s.unskipBullet);
   const quickAdd = useHomeStore((s) => s.quickAdd);
+  const reorderActive = useHomeStore((s) => s.reorderActive);
   const [quick, setQuick] = useState('');
   const [adding, setAdding] = useState(false);
+  const [quickType, setQuickType] = useState<'daily' | 'one_time'>('daily');
 
   useFocusEffect(
     useCallback(() => {
@@ -138,7 +263,7 @@ export default function HomeScreen() {
     if (!quick.trim() || adding) return;
     setAdding(true);
     try {
-      await quickAdd(quick);
+      await quickAdd(quick, quickType);
       setQuick('');
     } finally {
       setAdding(false);
@@ -152,7 +277,6 @@ export default function HomeScreen() {
       <AppBackground dark={theme === 'dark'} />
       <ScrollView contentContainerStyle={styles.listPad} keyboardShouldPersistTaps="handled">
 
-        {/* Date + progress */}
         <Text style={[styles.dateLine, { color: theme === 'dark' ? '#666' : '#999' }]}>{today}</Text>
         <View style={[styles.progressWrap, { backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f5f5f5' }]}>
           <View style={styles.progressHeader}>
@@ -168,7 +292,6 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Quick add */}
         <View style={[styles.quickRow, { borderColor: theme === 'dark' ? '#333' : '#e0e0e0', backgroundColor: c.background }]}>
           <FontAwesome name="plus" size={14} color={theme === 'dark' ? '#555' : '#bbb'} style={{ marginLeft: 12 }} />
           <TextInput
@@ -180,6 +303,30 @@ export default function HomeScreen() {
             onSubmitEditing={() => void handleQuickAdd()}
             returnKeyType="done"
           />
+          <View style={styles.typeToggle}>
+            <Pressable
+              style={[
+                styles.toggleBtn,
+                quickType === 'daily' && { backgroundColor: c.tint },
+                { borderColor: c.tint },
+              ]}
+              onPress={() => setQuickType('daily')}>
+              <Text style={[styles.toggleBtnText, { color: quickType === 'daily' ? '#fff' : c.tint }]}>
+                {t('quickAddDaily')}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.toggleBtn,
+                quickType === 'one_time' && { backgroundColor: c.tint },
+                { borderColor: c.tint },
+              ]}
+              onPress={() => setQuickType('one_time')}>
+              <Text style={[styles.toggleBtnText, { color: quickType === 'one_time' ? '#fff' : c.tint }]}>
+                {t('quickAddOneTime')}
+              </Text>
+            </Pressable>
+          </View>
           {quick.trim().length > 0 && (
             <Pressable
               style={[styles.addBtn, { backgroundColor: c.tint }]}
@@ -194,7 +341,6 @@ export default function HomeScreen() {
           <ActivityIndicator style={{ marginTop: 32 }} color={c.tint} />
         ) : (
           <>
-            {/* Active bullets */}
             <View style={styles.sectionRow}>
               <Text style={[styles.section, { color: c.text }]}>{t('active')}</Text>
               <Text style={[styles.sectionCount, { color: theme === 'dark' ? '#555' : '#bbb' }]}>
@@ -209,20 +355,49 @@ export default function HomeScreen() {
                 </Text>
               </View>
             ) : (
-              active.map((item) => (
-                <BulletCard
-                  key={item.id}
-                  item={item}
-                  done={false}
-                  c={c}
-                  theme={theme}
-                  onTap={() => void completeBullet(item)}
-                  onUndo={() => {}}
-                />
-              ))
+              <DraggableActiveList
+                items={active}
+                onReorder={(ids) => void reorderActive(ids)}
+                renderItem={(item, dragHandleProps) => (
+                  <BulletCard
+                    key={item.id}
+                    item={item}
+                    done={false}
+                    c={c}
+                    theme={theme}
+                    onTap={() => void completeBullet(item)}
+                    onUndo={() => {}}
+                    onSkip={() => void skipBullet(item)}
+                    dragHandleProps={dragHandleProps}
+                  />
+                )}
+              />
             )}
 
-            {/* Completed today */}
+            {skippedToday.length > 0 && (
+              <>
+                <View style={[styles.sectionRow, { marginTop: 20 }]}>
+                  <Text style={[styles.section, { color: theme === 'dark' ? '#555' : '#aaa' }]}>{t('skippedToday')}</Text>
+                  <Text style={[styles.sectionCount, { color: theme === 'dark' ? '#444' : '#ccc' }]}>
+                    {skippedToday.length}
+                  </Text>
+                </View>
+                {skippedToday.map((item) => (
+                  <BulletCard
+                    key={item.id}
+                    item={item}
+                    done={false}
+                    skipped
+                    c={c}
+                    theme={theme}
+                    onTap={() => {}}
+                    onUndo={() => {}}
+                    onUnskip={() => void unskipBullet(item)}
+                  />
+                ))}
+              </>
+            )}
+
             {completedToday.length > 0 && (
               <>
                 <View style={[styles.sectionRow, { marginTop: 20 }]}>
@@ -269,8 +444,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     minHeight: 46,
+    flexWrap: 'wrap',
   },
-  quickInput: { flex: 1, paddingHorizontal: 10, paddingVertical: 11, fontSize: 15 },
+  quickInput: { flex: 1, minWidth: 80, paddingHorizontal: 10, paddingVertical: 11, fontSize: 15 },
+  typeToggle: { flexDirection: 'row', gap: 4, paddingHorizontal: 8, paddingVertical: 6 },
+  toggleBtn: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  toggleBtnText: { fontSize: 11, fontWeight: '600' },
   addBtn: { paddingHorizontal: 16, paddingVertical: 11 },
   addBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 
@@ -291,6 +475,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     overflow: 'hidden',
   },
+  dragHandle: { paddingLeft: 10, paddingRight: 4, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' },
   cardBody: { flex: 1, flexDirection: 'row', alignItems: 'center', padding: 12 },
   cardLeft: { marginRight: 12 },
   checkCircle: {
@@ -316,6 +501,7 @@ const styles = StyleSheet.create({
   categoryPill: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
   categoryText: { fontSize: 11, fontWeight: '700' },
   undoText: { fontSize: 12, fontWeight: '700' },
+  skipText: { fontSize: 12, fontWeight: '600' },
   desc: { marginTop: 3, fontSize: 13 },
   editBtn: { padding: 10 },
 });
