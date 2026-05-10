@@ -143,88 +143,138 @@ function BulletCard({
   );
 }
 
-const ITEM_HEIGHT = 80;
+const ITEM_HEIGHT_FALLBACK = 76;
 
 function DraggableActiveList({
   items,
   onReorder,
   renderItem,
+  onDragStateChange,
 }: {
   items: Bullet[];
   onReorder: (orderedIds: string[]) => void;
   renderItem: (item: Bullet, dragHandleProps: object) => ReactNode;
+  onDragStateChange: (dragging: boolean) => void;
 }) {
-  const [list, setList] = useState(items);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const dragAnim = useRef(new Animated.Value(0)).current;
+  const listRef = useRef<Bullet[]>(items);
+  const [list, setListRaw] = useState<Bullet[]>(items);
+
   const prevItemsRef = useRef(items);
   if (prevItemsRef.current !== items) {
     prevItemsRef.current = items;
-    setList(items);
+    listRef.current = items;
+    setListRaw(items);
   }
 
-  const createPanResponder = useCallback(
-    (index: number) =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (_, gs) => {
-          dragAnim.setValue(0);
-          setDragIndex(index);
-          setHoverIndex(index);
-        },
-        onPanResponderMove: (_, gs) => {
-          dragAnim.setValue(gs.dy);
-          const newHover = Math.max(0, Math.min(list.length - 1, index + Math.round(gs.dy / ITEM_HEIGHT)));
+  const dragIndexRef = useRef<number | null>(null);
+  const hoverIndexRef = useRef<number | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const dragY = useRef(new Animated.Value(0)).current;
+  const onReorderRef = useRef(onReorder);
+  onReorderRef.current = onReorder;
+  const onDragStateChangeRef = useRef(onDragStateChange);
+  onDragStateChangeRef.current = onDragStateChange;
+  const itemHeightsRef = useRef<Map<string, number>>(new Map());
+
+  const avgItemHeight = () => {
+    const heights = Array.from(itemHeightsRef.current.values());
+    if (heights.length === 0) return ITEM_HEIGHT_FALLBACK;
+    return heights.reduce((s, h) => s + h, 0) / heights.length;
+  };
+
+  const panRespondersRef = useRef<Map<string, ReturnType<typeof PanResponder.create>>>(new Map());
+
+  const createPanResponder = (itemId: string) =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        const idx = listRef.current.findIndex((i) => i.id === itemId);
+        dragY.setValue(0);
+        dragIndexRef.current = idx;
+        hoverIndexRef.current = idx;
+        setDragIndex(idx);
+        setHoverIndex(idx);
+        onDragStateChangeRef.current(true);
+      },
+      onPanResponderMove: (_, gs) => {
+        dragY.setValue(gs.dy);
+        const idx = dragIndexRef.current ?? 0;
+        const h = avgItemHeight();
+        const newHover = Math.max(0, Math.min(listRef.current.length - 1, idx + Math.round(gs.dy / h)));
+        if (newHover !== hoverIndexRef.current) {
+          hoverIndexRef.current = newHover;
           setHoverIndex(newHover);
-        },
-        onPanResponderRelease: (_, gs) => {
-          const newIndex = Math.max(0, Math.min(list.length - 1, index + Math.round(gs.dy / ITEM_HEIGHT)));
-          dragAnim.setValue(0);
-          setDragIndex(null);
-          setHoverIndex(null);
-          if (newIndex !== index) {
-            const newList = [...list];
-            const [moved] = newList.splice(index, 1);
-            newList.splice(newIndex, 0, moved);
-            setList(newList);
-            onReorder(newList.map((i) => i.id));
-          }
-        },
-        onPanResponderTerminate: () => {
-          dragAnim.setValue(0);
-          setDragIndex(null);
-          setHoverIndex(null);
-        },
-      }),
-    [list, dragAnim, onReorder],
-  );
+        }
+      },
+      onPanResponderRelease: (_, gs) => {
+        const idx = dragIndexRef.current ?? 0;
+        const h = avgItemHeight();
+        const newIndex = Math.max(0, Math.min(listRef.current.length - 1, idx + Math.round(gs.dy / h)));
+        dragY.setValue(0);
+        dragIndexRef.current = null;
+        hoverIndexRef.current = null;
+        setDragIndex(null);
+        setHoverIndex(null);
+        onDragStateChangeRef.current(false);
+        if (newIndex !== idx) {
+          const newList = [...listRef.current];
+          const [moved] = newList.splice(idx, 1);
+          newList.splice(newIndex, 0, moved);
+          listRef.current = newList;
+          setListRaw(newList);
+          onReorderRef.current(newList.map((i) => i.id));
+        }
+      },
+      onPanResponderTerminate: () => {
+        dragY.setValue(0);
+        dragIndexRef.current = null;
+        hoverIndexRef.current = null;
+        setDragIndex(null);
+        setHoverIndex(null);
+        onDragStateChangeRef.current(false);
+      },
+    });
+
+  for (const item of list) {
+    if (!panRespondersRef.current.has(item.id)) {
+      panRespondersRef.current.set(item.id, createPanResponder(item.id));
+    }
+  }
+  const currentIds = new Set(list.map((i) => i.id));
+  for (const id of [...panRespondersRef.current.keys()]) {
+    if (!currentIds.has(id)) panRespondersRef.current.delete(id);
+  }
 
   return (
     <View>
       {list.map((item, index) => {
         const isDragging = dragIndex === index;
-        const panResponder = createPanResponder(index);
+        const pr = panRespondersRef.current.get(item.id)!;
+        const draggedH = dragIndex !== null
+          ? (itemHeightsRef.current.get(list[dragIndex]?.id ?? '') ?? ITEM_HEIGHT_FALLBACK)
+          : ITEM_HEIGHT_FALLBACK;
 
         let translateY = 0;
         if (dragIndex !== null && hoverIndex !== null && dragIndex !== hoverIndex) {
           if (dragIndex < hoverIndex && index > dragIndex && index <= hoverIndex) {
-            translateY = -ITEM_HEIGHT;
+            translateY = -draggedH;
           } else if (dragIndex > hoverIndex && index < dragIndex && index >= hoverIndex) {
-            translateY = ITEM_HEIGHT;
+            translateY = draggedH;
           }
         }
 
         return (
           <Animated.View
             key={item.id}
-            style={[
+            onLayout={(e) => { itemHeightsRef.current.set(item.id, e.nativeEvent.layout.height); }}
+            style={
               isDragging
-                ? { zIndex: 10, transform: [{ translateY: dragAnim }], opacity: 0.95 }
-                : { transform: [{ translateY }] },
-            ]}>
-            {renderItem(item, panResponder.panHandlers)}
+                ? { zIndex: 10, transform: [{ translateY: dragY }], opacity: 0.92 }
+                : { transform: [{ translateY }] }
+            }>
+            {renderItem(item, pr.panHandlers)}
           </Animated.View>
         );
       })}
@@ -252,6 +302,7 @@ export default function HomeScreen() {
   const [quick, setQuick] = useState('');
   const [adding, setAdding] = useState(false);
   const [quickType, setQuickType] = useState<'daily' | 'one_time'>('daily');
+  const [scrollEnabled, setScrollEnabled] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -275,7 +326,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.root, { backgroundColor: c.background }]}>
       <AppBackground dark={theme === 'dark'} />
-      <ScrollView contentContainerStyle={styles.listPad} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.listPad} keyboardShouldPersistTaps="handled" scrollEnabled={scrollEnabled}>
 
         <Text style={[styles.dateLine, { color: theme === 'dark' ? '#666' : '#999' }]}>{today}</Text>
         <View style={[styles.progressWrap, { backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f5f5f5' }]}>
@@ -358,6 +409,7 @@ export default function HomeScreen() {
               <DraggableActiveList
                 items={active}
                 onReorder={(ids) => void reorderActive(ids)}
+                onDragStateChange={(dragging) => setScrollEnabled(!dragging)}
                 renderItem={(item, dragHandleProps) => (
                   <BulletCard
                     key={item.id}
